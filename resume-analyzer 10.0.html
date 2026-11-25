@@ -1,0 +1,1518 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Resume Analyzer — Dossier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.11.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+  :root{
+    --bg-deep:#020203;
+    --bg:#050506;
+    --panel:#0a0a0c;
+    --panel-2:#0d0d10;
+    --line:rgba(255,255,255,.06);
+    --line-strong:rgba(255,255,255,.12);
+    --text:#EDEDEF;
+    --text-dim:#8A8F98;
+    --text-subtle:rgba(255,255,255,.6);
+    --blue:#5E6AD2;
+    --blue-deep:#4A50AE;
+    --blue-bright:#6872D9;
+    --blue-bg:rgba(94,106,210,.14);
+    --green:#3ECF8E;
+    --green-bright:#52E3A4;
+    --green-bg:rgba(62,207,142,.12);
+    --red:#F87171;
+    --red-bg:rgba(248,113,113,.12);
+    --violet:#8D7FEA;
+    --violet-bright:#A79BF2;
+    --violet-bg:rgba(141,127,234,.12);
+    --glass:rgba(255,255,255,.05);
+    --glass-light:rgba(255,255,255,.03);
+    --glass-border:rgba(255,255,255,.06);
+    --glass-hover:rgba(255,255,255,.08);
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 1200px 700px at 50% -10%, #0b0b12 0%, transparent 60%),
+      radial-gradient(ellipse 900px 600px at 100% 0%, rgba(94,106,210,.10) 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter','Geist Sans',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+    overflow-x:hidden;
+    min-height:100vh;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ===== Layered ambient background ===== */
+  .bg-decor{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
+  .bg-noise{
+    position:absolute;inset:0;opacity:.02;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  .bg-grid{
+    position:absolute;inset:-2px;
+    background-image:
+      linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(1200px 800px at 50% 0%, #000 0%, transparent 75%);
+    animation:gridDrift 46s linear infinite;
+  }
+  .bg-orb{position:absolute;border-radius:50%;filter:blur(120px);opacity:.6;animation:orbDrift 9s ease-in-out infinite;}
+  .bg-orb.o1{width:900px;height:900px;top:-360px;right:-260px;background:radial-gradient(circle, rgba(94,106,210,.30), transparent 70%);filter:blur(150px);animation-duration:10s;}
+  .bg-orb.o2{width:640px;height:640px;bottom:-220px;left:-200px;background:radial-gradient(circle, rgba(141,127,234,.16), transparent 70%);filter:blur(120px);animation-duration:9s;animation-delay:-3s;}
+  .bg-orb.o3{width:520px;height:520px;top:34%;left:56%;background:radial-gradient(circle, rgba(62,207,142,.10), transparent 70%);filter:blur(100px);animation-duration:8.5s;animation-delay:-5s;}
+  .bg-nodes{position:absolute;inset:0;opacity:.4;}
+  .bg-nodes circle{animation:nodePulse 4.5s ease-in-out infinite;}
+  .bg-nodes line{stroke:rgba(94,106,210,.14);stroke-width:1;}
+  @keyframes gridDrift{from{transform:translate(0,0);}to{transform:translate(64px,64px);}}
+  @keyframes orbDrift{
+    0%,100%{transform:translate(0,0) rotate(0deg) scale(1);}
+    50%{transform:translate(-20px,-20px) rotate(1deg) scale(1.05);}
+  }
+  @keyframes nodePulse{0%,100%{opacity:.2;r:2;}50%{opacity:.85;r:3;}}
+  @media (max-width:640px){.bg-orb{filter:blur(70px);opacity:.4;}}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{
+      animation-duration:0.001ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:0.001ms !important;
+      scroll-behavior:auto !important;
+    }
+  }
+
+  ::selection{background:rgba(94,106,210,.35);color:#fff;}
+  :focus-visible{outline:none;box-shadow:0 0 0 2px var(--bg), 0 0 0 4px rgba(94,106,210,.6);border-radius:6px;}
+
+  @keyframes fadeInUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes floatY{0%,100%{transform:translateY(0px);}50%{transform:translateY(-8px);}}
+  @keyframes floatSmall{0%,100%{transform:translateY(0px);}50%{transform:translateY(-4px);}}
+  @keyframes stampIn{
+    0%{opacity:0;transform:scale(.9) rotate(-3deg);}
+    100%{opacity:1;transform:scale(1) rotate(-3deg);}
+  }
+  @keyframes popIn{from{opacity:0;transform:translateY(4px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+  @keyframes pulseGlow{
+    0%,100%{box-shadow:0 0 0 0 rgba(94,106,210,.4);}
+    50%{box-shadow:0 0 0 6px rgba(94,106,210,0);}
+  }
+  @keyframes pulseBorder{0%,100%{border-color:var(--line-strong);}50%{border-color:var(--blue-bright);}}
+  @keyframes scanline{0%{top:0%;opacity:0;}10%{opacity:1;}90%{opacity:1;}100%{top:100%;opacity:0;}}
+  @keyframes shimmerText{0%,100%{opacity:.55;}50%{opacity:1;}}
+  @keyframes drawUnderline{from{transform:scaleX(0);}to{transform:scaleX(1);}}
+  @keyframes glowPulse{0%,100%{opacity:.5;}50%{opacity:1;}}
+  @keyframes glowShadow{
+    0%,100%{box-shadow:0 0 0 0 rgba(62,207,142,.3);}
+    50%{box-shadow:0 0 12px 1px rgba(62,207,142,.4);}
+  }
+  @keyframes gradientShift{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
+  @keyframes sparkleFloat{0%,100%{transform:translateY(0) rotate(0deg);opacity:.7;}50%{transform:translateY(-6px) rotate(8deg);opacity:1;}}
+  @keyframes ringSpin{to{transform:rotate(360deg);}}
+
+  #root{max-width:1040px;margin:0 auto;padding:0 24px 96px;position:relative;z-index:1;}
+
+  /* Header / masthead */
+  .masthead{
+    display:flex;align-items:baseline;justify-content:space-between;
+    padding:18px 22px;border-radius:16px;margin:20px 0 40px;
+    background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));
+    border:1px solid var(--glass-border);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 2px 20px rgba(0,0,0,.4), 0 0 40px rgba(0,0,0,.2);
+    animation:fadeInUp .5s var(--ease) both;
+  }
+  .masthead .brand{display:flex;align-items:center;gap:16px;}
+  .brand-mark{
+    width:46px;height:46px;border-radius:12px;
+    background:linear-gradient(135deg, var(--blue), var(--violet));
+    background-size:200% 200%;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-family:'IBM Plex Mono';font-weight:600;font-size:17px;
+    animation:pulseGlow 3.2s ease-in-out infinite, gradientShift 6s ease infinite;
+    box-shadow:0 0 0 1px rgba(255,255,255,.1) inset, 0 0 16px -2px rgba(94,106,210,.6);
+    transition:transform .25s var(--ease);
+  }
+  .brand-mark:hover{transform:scale(1.05);}
+  .brand-title{
+    font-family:'Inter',sans-serif;font-weight:700;font-size:30px;line-height:1.1;letter-spacing:-0.03em;color:var(--text);
+  }
+  .brand-sub{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);letter-spacing:0.08em;text-transform:uppercase;margin-top:2px;}
+  .masthead-date{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);text-align:right;}
+
+  /* Hero / uploader */
+  .hero{padding:12px 0 48px;position:relative;display:flex;gap:32px;align-items:flex-start;}
+  .hero-copy{flex:1;min-width:0;}
+  .hero h1{
+    font-family:'Inter',sans-serif;font-weight:600;font-size:42px;line-height:1.12;
+    letter-spacing:-0.03em;margin:0 0 14px;max-width:640px;
+    background:linear-gradient(to bottom, #fff, rgba(255,255,255,.75));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:fadeInUp .6s var(--ease) both .05s;
+  }
+  .hero h1 .accent{
+    position:relative;white-space:nowrap;
+    background:linear-gradient(90deg, var(--blue-bright), var(--violet-bright));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero h1 .accent::after{
+    content:'';position:absolute;left:0;right:0;bottom:2px;height:6px;background:rgba(94,106,210,.28);
+    transform-origin:left;animation:drawUnderline .7s var(--ease) both .45s;z-index:-1;
+  }
+  .hero p{color:var(--text-dim);font-size:15.5px;line-height:1.65;max-width:560px;margin:0 0 30px;
+    animation:fadeInUp .6s var(--ease) both .12s;}
+
+  .hero-illustration{
+    flex-shrink:0;width:160px;height:160px;display:block;position:relative;z-index:2;
+    filter:drop-shadow(0 12px 28px rgba(94,106,210,.25));
+    animation:floatY 7s ease-in-out infinite, fadeIn .8s ease both .18s;
+  }
+  @media (max-width:760px){.hero{flex-direction:column;} .hero-illustration{display:none;}}
+
+  /* Ambient hero art — abstract glowing ribbon swirl, sits behind the copy/illustration */
+  .hero-art{
+    position:absolute;top:50%;right:-140px;width:620px;height:620px;
+    transform:translateY(-50%);z-index:0;pointer-events:none;
+    opacity:.85;filter:drop-shadow(0 0 60px rgba(94,106,210,.18));
+    animation:heroArtDrift 24s ease-in-out infinite, fadeIn 1.2s ease both;
+  }
+  @keyframes heroArtDrift{
+    0%,100%{transform:translateY(-50%) rotate(0deg) scale(1);}
+    50%{transform:translateY(-52%) rotate(3deg) scale(1.03);}
+  }
+  @media (max-width:1180px){.hero-art{opacity:.5;right:-220px;}}
+  @media (max-width:760px){.hero-art{display:none;}}
+
+  .dropzone{
+    border:1.5px dashed var(--line-strong);
+    border-radius:16px;
+    background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    padding:48px 32px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s var(--ease), background .2s var(--ease), transform .25s var(--ease), box-shadow .3s var(--ease);
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 2px 20px rgba(0,0,0,.4);
+    animation:fadeInUp .6s var(--ease) both .2s;
+  }
+  .dropzone::after{
+    content:'';position:absolute;left:0;top:0;width:300px;height:300px;border-radius:50%;
+    background:radial-gradient(circle, rgba(94,106,210,.16), transparent 70%);
+    transform:translate(var(--mx,50%),var(--my,50%)) translate(-50%,-50%);
+    opacity:0;transition:opacity .3s ease;pointer-events:none;
+  }
+  .dropzone:hover::after{opacity:1;}
+  .dropzone:hover{
+    border-color:var(--blue-bright);
+    background:linear-gradient(to bottom, var(--glass-hover), rgba(255,255,255,.03));
+    transform:translateY(-4px);
+    box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 8px 40px rgba(0,0,0,.5), 0 0 60px rgba(94,106,210,.12);
+  }
+  .dropzone.drag{
+    border-color:var(--blue-bright);
+    background:var(--panel-2);
+    animation:pulseBorder 1s ease-in-out infinite;
+    transform:scale(1.008);
+    box-shadow:0 0 40px -6px rgba(94,106,210,.5);
+  }
+  .dropzone .icon{
+    width:52px;height:52px;margin:0 auto 16px;
+    border:1.5px solid var(--line-strong);border-radius:14px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono';font-size:20px;color:var(--text);
+    background:linear-gradient(135deg, rgba(94,106,210,.14), rgba(141,127,234,.08));
+    transition:transform .25s var(--ease), border-color .25s var(--ease), color .25s var(--ease), box-shadow .25s var(--ease);
+    position:relative;z-index:1;
+  }
+  .dropzone:hover .icon{transform:translateY(-4px);border-color:var(--blue-bright);color:var(--blue-bright);box-shadow:0 0 20px -4px rgba(94,106,210,.55);}
+  .dropzone h3{font-family:'Inter',sans-serif;font-size:18px;margin:0 0 6px;font-weight:600;letter-spacing:-0.01em;color:var(--text);position:relative;z-index:1;}
+  .dropzone p{color:var(--text-dim);font-size:13px;margin:0;position:relative;z-index:1;}
+  .dropzone input{display:none;}
+  .dropzone .scanbar{
+    position:absolute;left:0;right:0;top:0;height:2px;
+    background:linear-gradient(90deg, transparent, var(--blue-bright), transparent);
+    animation:scanline 1.6s linear infinite;
+    display:none;
+  }
+  .dropzone.scanning .scanbar{display:block;}
+
+  .status-line{
+    display:flex;align-items:center;gap:10px;
+    font-family:'IBM Plex Mono';font-size:12px;color:var(--text-dim);
+    margin-top:16px;
+  }
+  .status-line span{animation:shimmerText 1.4s ease-in-out infinite;}
+  .spinner{
+    width:12px;height:12px;border-radius:50%;
+    border:2px solid var(--line);border-top-color:var(--blue-bright);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .error-box{
+    margin-top:16px;padding:14px 16px;border:1px solid rgba(248,113,113,.3);
+    background:var(--red-bg);color:var(--red);border-radius:10px;font-size:13px;
+    animation:fadeInUp .3s var(--ease) both;
+  }
+
+  /* Section label */
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--blue-bright);
+    display:flex;align-items:center;gap:10px;margin-bottom:16px;
+  }
+  .section-label::after{content:'';flex:1;height:1px;background:var(--line);}
+
+  .reveal-block{opacity:0;animation:fadeInUp .5s var(--ease) both;}
+
+  /* Results header */
+  .result-head{
+    display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--line-strong);padding-bottom:20px;margin-bottom:32px;flex-wrap:wrap;gap:16px;
+  }
+  .result-head h2{font-family:'Inter',sans-serif;font-size:28px;margin:0 0 6px;font-weight:600;letter-spacing:-0.02em;color:var(--text);}
+  .result-head .meta{font-size:13px;color:var(--text-dim);display:flex;gap:16px;flex-wrap:wrap;}
+  .result-head .meta span{font-family:'IBM Plex Mono';}
+  .reset-btn{
+    font-family:'IBM Plex Mono';font-size:12px;letter-spacing:0.04em;
+    background:var(--glass-light);border:1px solid var(--line-strong);color:var(--text);
+    padding:9px 16px;border-radius:8px;cursor:pointer;text-transform:uppercase;
+    box-shadow:inset 0 1px 0 0 rgba(255,255,255,.06);
+    transition:background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .reset-btn:hover{background:var(--glass-hover);border-color:var(--line-strong);color:var(--text);transform:translateY(-2px);box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 8px 24px rgba(0,0,0,.4);}
+  .reset-btn:active{transform:scale(.98);}
+
+  /* Gauges */
+  .gauge-row{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:36px;}
+  @media (max-width:640px){.gauge-row{grid-template-columns:1fr;}}
+  .gauge-card{
+    background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));
+    border:1px solid var(--glass-border);border-radius:16px;
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    padding:24px;display:flex;gap:22px;align-items:center;position:relative;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 2px 20px rgba(0,0,0,.4), 0 0 40px rgba(0,0,0,.2);
+    transition:box-shadow .3s var(--ease), transform .3s var(--ease), border-color .3s var(--ease);
+  }
+  .gauge-card::after{
+    content:'';position:absolute;left:0;top:0;width:300px;height:300px;border-radius:50%;
+    background:radial-gradient(circle, rgba(94,106,210,.14), transparent 70%);
+    transform:translate(var(--mx,50%),var(--my,50%)) translate(-50%,-50%);
+    opacity:0;transition:opacity .3s ease;pointer-events:none;
+  }
+  .gauge-card:hover::after{opacity:1;}
+  .gauge-card:hover{box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 8px 40px rgba(0,0,0,.5), 0 0 60px rgba(94,106,210,.1);transform:translateY(-4px);border-color:var(--line-strong);}
+  .gauge-card.excellent{border-color:rgba(82,227,164,.35);animation:glowShadow 3s ease-in-out 1.2s infinite;}
+  .gauge-title{font-family:'Inter',sans-serif;font-weight:600;font-size:15px;letter-spacing:-0.01em;margin:0 0 4px;color:var(--text);position:relative;z-index:1;}
+  .gauge-desc{font-size:12.5px;color:var(--text-dim);margin:0 0 14px;line-height:1.5;position:relative;z-index:1;}
+  .gauge-num{font-family:'IBM Plex Mono';font-size:13px;color:var(--text-dim);}
+  .gauge-num b{color:var(--text);font-size:15px;}
+
+  .gauge-circle-bg{transition:stroke-dashoffset 1.1s var(--ease);}
+  .gauge-circle-fg{transition:stroke-dashoffset 1.2s var(--ease) .1s;filter:drop-shadow(0 0 6px currentColor);}
+  .gauge-num-glow{animation:shimmerText 2.4s ease-in-out infinite;}
+
+  .breakdown-row{display:flex;justify-content:space-between;font-size:11.5px;font-family:'IBM Plex Mono';margin:7px 0 3px;color:var(--text-dim);position:relative;z-index:1;}
+  .breakdown-bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:9px;position:relative;z-index:1;}
+  .breakdown-bar > div{height:100%;background:linear-gradient(90deg, var(--blue-deep), var(--blue-bright));width:0%;transition:width 1s var(--ease);}
+  [id^="ats-bar-"]{background:linear-gradient(90deg, var(--green), var(--green-bright)) !important;}
+
+  /* Skills */
+  .tag-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:36px;}
+  .tag{
+    font-family:'IBM Plex Mono';font-size:12px;padding:6px 13px;border-radius:999px;
+    background:var(--blue-bg);color:var(--blue-bright);border:1px solid rgba(94,106,210,.3);
+    opacity:0;transform:translateY(4px);
+    animation:popIn .35s var(--ease) forwards;
+    transition:background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s var(--ease);
+  }
+  .tag:hover{background:var(--green-bg);color:var(--green-bright);border-color:rgba(62,207,142,.4);transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(62,207,142,.5);}
+  .tag.empty{background:none;border:1px dashed var(--line-strong);color:var(--text-dim);}
+  .tag.empty:hover{background:none;box-shadow:none;transform:none;color:var(--text-dim);border-color:var(--line-strong);}
+
+  /* Suggestions */
+  .suggestion-list{list-style:none;padding:0;margin:0 0 36px;display:flex;flex-direction:column;gap:10px;}
+  .suggestion-list li{
+    display:flex;gap:12px;padding:13px 16px;background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--glass-border);border-left:2px solid var(--blue);border-radius:10px;
+    font-size:13.5px;line-height:1.55;color:var(--text);
+    opacity:0;animation:fadeInUp .45s var(--ease) forwards;
+    transition:transform .2s var(--ease), box-shadow .25s var(--ease), border-left-color .2s var(--ease), background .2s var(--ease);
+  }
+  .suggestion-list li:hover{transform:translateX(4px);box-shadow:0 8px 24px -14px rgba(62,207,142,.5);border-left-color:var(--green);background:var(--panel-2);}
+  .suggestion-list li .idx{font-family:'IBM Plex Mono';color:var(--blue-bright);font-weight:600;flex-shrink:0;}
+
+  /* Job cards */
+  .job-grid{display:flex;flex-direction:column;gap:14px;margin-bottom:20px;}
+  .job-card{
+    background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));border:1px solid var(--glass-border);border-radius:16px;
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    padding:22px 24px;position:relative;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 2px 20px rgba(0,0,0,.4);
+    opacity:0;animation:fadeInUp .5s var(--ease) forwards;
+    transition:box-shadow .3s var(--ease), transform .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease);
+  }
+  .job-card::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+    background:var(--green);transform:scaleY(0);transform-origin:top;transition:transform .25s var(--ease);
+  }
+  .job-card::after{
+    content:'';position:absolute;left:0;top:0;width:320px;height:320px;border-radius:50%;
+    background:radial-gradient(circle, rgba(94,106,210,.12), transparent 70%);
+    transform:translate(var(--mx,50%),var(--my,50%)) translate(-50%,-50%);
+    opacity:0;transition:opacity .3s ease;pointer-events:none;
+  }
+  .job-card:hover::after{opacity:1;}
+  .job-card:hover{box-shadow:0 0 0 1px rgba(255,255,255,.1), 0 8px 40px rgba(0,0,0,.5), 0 0 60px rgba(94,106,210,.1);transform:translateY(-4px);border-color:var(--line-strong);background:var(--panel-2);}
+  .job-card:hover::before{transform:scaleY(1);}
+  .job-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;position:relative;z-index:1;}
+  .job-title{font-family:'Inter',sans-serif;font-size:17px;font-weight:600;letter-spacing:-0.01em;margin:0 0 3px;color:var(--text);}
+  .job-company{font-size:13px;color:var(--text-dim);}
+  .job-company span{color:var(--text);font-weight:500;}
+  .job-company .job-cat{
+    display:inline-block;margin-left:6px;padding:2px 9px;border-radius:999px;
+    background:var(--blue-bg);color:var(--blue-bright);font-weight:600;font-size:10px;
+    letter-spacing:0.03em;text-transform:uppercase;font-family:'IBM Plex Mono';
+    border:1px solid rgba(94,106,210,.25);
+  }
+  .match-stamp{
+    font-family:'IBM Plex Mono';font-weight:600;font-size:13px;
+    border:1.5px solid rgba(94,106,210,.4);color:var(--blue-bright);
+    background:var(--blue-bg);
+    border-radius:50%;width:54px;height:54px;flex-shrink:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    line-height:1;position:relative;z-index:1;
+    opacity:0;animation:stampIn .4s var(--ease) forwards;
+    transition:box-shadow .25s var(--ease);
+  }
+  .job-card:hover .match-stamp{box-shadow:0 0 0 4px rgba(94,106,210,.14), 0 0 16px -4px rgba(94,106,210,.5);}
+  .match-stamp.high{border-color:rgba(62,207,142,.45);color:var(--green-bright);background:var(--green-bg);animation:stampIn .4s var(--ease) forwards, glowShadow 2.6s ease-in-out 1s infinite;}
+  .job-card:hover .match-stamp.high{box-shadow:0 0 0 4px rgba(62,207,142,.14), 0 0 16px -4px rgba(62,207,142,.55);}
+  .match-stamp small{font-size:8px;letter-spacing:0.05em;margin-top:1px;}
+  .job-meta{font-family:'IBM Plex Mono';font-size:11.5px;color:var(--text-dim);margin-bottom:12px;position:relative;z-index:1;}
+  .job-skills{display:flex;flex-wrap:wrap;gap:6px;position:relative;z-index:1;}
+  .skill-pill{font-family:'IBM Plex Mono';font-size:11px;padding:4px 10px;border-radius:999px;transition:transform .15s var(--ease);}
+  .skill-pill:hover{transform:translateY(-1px);}
+  .skill-pill.have{background:var(--green-bg);color:var(--green-bright);}
+  .skill-pill.missing{background:var(--red-bg);color:var(--red);text-decoration:line-through;text-decoration-color:rgba(248,113,113,.5);}
+
+  .job-footer{display:flex;justify-content:flex-end;align-items:center;padding-top:14px;margin-top:2px;border-top:1px solid var(--line);position:relative;z-index:1;}
+  .apply-btn{
+    font-family:'IBM Plex Mono';font-size:12.5px;letter-spacing:0.03em;
+    background:linear-gradient(135deg, var(--blue), var(--blue-deep));color:#fff;font-weight:600;border:none;
+    padding:10px 20px;border-radius:8px;cursor:pointer;text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:8px;
+    box-shadow:0 0 0 1px rgba(94,106,210,.5), 0 4px 14px -6px rgba(94,106,210,.4), inset 0 1px 0 0 rgba(255,255,255,.15);
+    transition:transform .2s var(--ease), box-shadow .25s var(--ease), filter .2s var(--ease);
+  }
+  .apply-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(94,106,210,.6), 0 10px 28px -8px rgba(94,106,210,.55), inset 0 1px 0 0 rgba(255,255,255,.2);filter:brightness(1.06);}
+  .apply-btn:active{transform:scale(.98);}
+  .apply-btn svg{width:13px;height:13px;flex-shrink:0;}
+  @media (max-width:640px){
+    .job-footer{justify-content:stretch;}
+    .apply-btn{width:100%;justify-content:center;}
+  }
+
+  .board-search{
+    display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;
+    background:linear-gradient(to bottom, var(--glass), rgba(255,255,255,.02));border:1px solid var(--glass-border);border-radius:14px;
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    padding:14px;margin-bottom:6px;
+    box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 2px 20px rgba(0,0,0,.4);
+  }
+  .board-search input{
+    flex:1 1 180px;min-width:140px;background:#0F0F12;border:1px solid rgba(255,255,255,.1);color:var(--text);
+    font-family:'IBM Plex Mono';font-size:13px;padding:10px 13px;border-radius:8px;outline:none;
+    transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .board-search input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(94,106,210,.18);}
+  .board-search input::placeholder{color:#6b7078;}
+  .board-btn-row{display:flex;gap:10px;flex-wrap:wrap;width:100%;}
+  .board-btn{
+    font-family:'IBM Plex Mono';font-size:12.5px;letter-spacing:0.03em;
+    background:linear-gradient(135deg, var(--blue), var(--blue-deep));color:#fff;font-weight:600;border:none;
+    padding:10px 20px;border-radius:8px;cursor:pointer;text-transform:uppercase;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:8px;flex:1 1 auto;justify-content:center;
+    box-shadow:0 0 0 1px rgba(94,106,210,.5), 0 4px 14px -6px rgba(94,106,210,.4), inset 0 1px 0 0 rgba(255,255,255,.15);
+    transition:transform .2s var(--ease), box-shadow .25s var(--ease), filter .2s var(--ease);
+  }
+  .board-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(94,106,210,.6), 0 10px 28px -8px rgba(94,106,210,.55);filter:brightness(1.06);}
+  .board-btn:active{transform:scale(.98);}
+  .board-btn svg{width:13px;height:13px;flex-shrink:0;}
+  .board-btn.naukri{background:linear-gradient(135deg, var(--violet), #6D5FD0);box-shadow:0 0 0 1px rgba(141,127,234,.5), 0 4px 14px -6px rgba(141,127,234,.4), inset 0 1px 0 0 rgba(255,255,255,.15);}
+  .board-btn.naukri:hover{box-shadow:0 0 0 1px rgba(141,127,234,.6), 0 10px 28px -8px rgba(141,127,234,.55);}
+  .board-btn.foundit{background:linear-gradient(135deg, var(--green), #2FAE73);color:#04140d;box-shadow:0 0 0 1px rgba(62,207,142,.5), 0 4px 14px -6px rgba(62,207,142,.4), inset 0 1px 0 0 rgba(255,255,255,.15);}
+  .board-btn.foundit:hover{box-shadow:0 0 0 1px rgba(62,207,142,.6), 0 10px 28px -8px rgba(62,207,142,.55);}
+  @media (max-width:640px){
+    .board-search{flex-direction:column;}
+    .board-btn-row{flex-direction:column;}
+    .board-btn{width:100%;}
+  }
+
+  .download-row{display:flex;justify-content:center;margin:44px 0 8px;}
+  .download-btn{
+    font-family:'IBM Plex Mono';font-size:13px;letter-spacing:0.03em;
+    background:linear-gradient(135deg, var(--blue), var(--violet));color:#fff;border:none;
+    padding:14px 28px;border-radius:10px;cursor:pointer;text-transform:uppercase;
+    position:relative;overflow:hidden;
+    box-shadow:0 0 0 1px rgba(94,106,210,.5), 0 6px 20px -8px rgba(94,106,210,.45), inset 0 1px 0 0 rgba(255,255,255,.15);
+    transition:transform .2s var(--ease), box-shadow .25s var(--ease), filter .2s var(--ease);
+  }
+  .download-btn:hover{transform:translateY(-2px);box-shadow:0 0 0 1px rgba(94,106,210,.6), 0 14px 32px -10px rgba(94,106,210,.6), inset 0 1px 0 0 rgba(255,255,255,.2);filter:brightness(1.06);}
+  .download-btn:active{transform:scale(.98);}
+  .download-btn:disabled{opacity:.5;cursor:default;}
+
+  .footnote{text-align:center;font-size:11.5px;color:var(--text-dim);margin-top:10px;font-family:'IBM Plex Mono';}
+
+  .hidden{display:none !important;}
+
+  .sector-head{display:flex;align-items:center;justify-content:space-between;margin:18px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--line);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);}
+  .sector-head b{color:var(--blue-bright);font-weight:600;}
+  .job-links{display:flex;flex-wrap:wrap;gap:6px;padding:10px 0 12px;position:relative;z-index:1;}
+  .mini-link{font-size:11px;padding:4px 9px;border-radius:6px;border:1px solid var(--line-strong);background:var(--glass);color:var(--text-subtle);text-decoration:none;transition:all .2s var(--ease);}
+  .mini-link:hover{background:var(--glass-hover);color:var(--text);border-color:var(--blue-bright);}
+  .ats-tag{display:inline-block;min-width:34px;}
+</style>
+</head>
+<body>
+
+<div class="bg-decor" aria-hidden="true">
+  <div class="bg-grid"></div>
+  <div class="bg-orb o1"></div>
+  <div class="bg-orb o2"></div>
+  <div class="bg-orb o3"></div>
+  <svg class="bg-nodes" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">
+    <line x1="8%" y1="12%" x2="22%" y2="26%"/>
+    <line x1="22%" y1="26%" x2="14%" y2="42%"/>
+    <line x1="88%" y1="10%" x2="76%" y2="24%"/>
+    <line x1="76%" y1="24%" x2="86%" y2="38%"/>
+    <line x1="92%" y1="58%" x2="80%" y2="70%"/>
+    <line x1="10%" y1="70%" x2="20%" y2="82%"/>
+    <circle cx="8%" cy="12%" r="2.4" fill="var(--blue-bright)" style="animation-delay:0s;"/>
+    <circle cx="22%" cy="26%" r="2.4" fill="var(--violet-bright)" style="animation-delay:.6s;"/>
+    <circle cx="14%" cy="42%" r="2.4" fill="var(--green-bright)" style="animation-delay:1.2s;"/>
+    <circle cx="88%" cy="10%" r="2.4" fill="var(--violet-bright)" style="animation-delay:.3s;"/>
+    <circle cx="76%" cy="24%" r="2.4" fill="var(--blue-bright)" style="animation-delay:.9s;"/>
+    <circle cx="86%" cy="38%" r="2.4" fill="var(--green-bright)" style="animation-delay:1.5s;"/>
+    <circle cx="92%" cy="58%" r="2.4" fill="var(--blue-bright)" style="animation-delay:.4s;"/>
+    <circle cx="80%" cy="70%" r="2.4" fill="var(--violet-bright)" style="animation-delay:1s;"/>
+    <circle cx="10%" cy="70%" r="2.4" fill="var(--green-bright)" style="animation-delay:.7s;"/>
+    <circle cx="20%" cy="82%" r="2.4" fill="var(--blue-bright)" style="animation-delay:1.3s;"/>
+    <line x1="70%" y1="46%" x2="82%" y2="56%"/>
+    <line x1="82%" y1="56%" x2="78%" y2="70%"/>
+    <line x1="60%" y1="18%" x2="70%" y2="46%"/>
+    <circle cx="70%" cy="46%" r="2" fill="var(--blue-bright)" style="animation-delay:.5s;"/>
+    <circle cx="82%" cy="56%" r="2" fill="var(--violet-bright)" style="animation-delay:1.1s;"/>
+    <circle cx="78%" cy="70%" r="2" fill="var(--green-bright)" style="animation-delay:1.7s;"/>
+    <circle cx="60%" cy="18%" r="2" fill="var(--violet-bright)" style="animation-delay:.2s;"/>
+  </svg>
+</div>
+
+<div id="root">
+
+  <div class="masthead">
+    <div class="brand">
+      <div class="brand-mark">RA</div>
+      <div>
+        <div class="brand-title">Resume Analyzer</div>
+        <div class="brand-sub">Dossier &amp; Job Match Report</div>
+      </div>
+    </div>
+    <div class="masthead-date" id="todayDate"></div>
+  </div>
+
+  <!-- UPLOAD VIEW -->
+  <div id="uploadView">
+    <div class="hero">
+      <svg class="hero-art" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="ribbonA" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="var(--blue-bright)"/>
+            <stop offset="55%" stop-color="var(--violet-bright)"/>
+            <stop offset="100%" stop-color="var(--blue-deep)"/>
+          </linearGradient>
+          <linearGradient id="ribbonB" x1="100%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="var(--violet-bright)"/>
+            <stop offset="100%" stop-color="var(--green-bright)"/>
+          </linearGradient>
+          <radialGradient id="ribbonCore" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#fff" stop-opacity="0.9"/>
+            <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+          </radialGradient>
+          <filter id="ribbonGlow" x="-60%" y="-60%" width="220%" height="220%">
+            <feGaussianBlur stdDeviation="7" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <g filter="url(#ribbonGlow)" fill="none" stroke-linecap="round">
+          <path d="M 90 330 C 150 150, 400 110, 480 280 C 550 430, 400 520, 300 460 C 220 410, 250 300, 340 300 C 400 300, 410 380, 350 400"
+            stroke="url(#ribbonA)" stroke-width="14" opacity="0.9"/>
+          <path d="M 110 370 C 190 210, 420 170, 490 320 C 545 440, 410 500, 330 440"
+            stroke="url(#ribbonB)" stroke-width="7" opacity="0.65"/>
+          <path d="M 150 300 C 230 190, 400 190, 450 300 C 495 400, 380 450, 320 390 C 280 350, 320 310, 360 330"
+            stroke="var(--text)" stroke-width="2" opacity="0.25"/>
+        </g>
+        <circle cx="330" cy="300" r="60" fill="url(#ribbonCore)" opacity="0.35"/>
+        <g opacity="0.7">
+          <circle cx="470" cy="180" r="2.4" fill="var(--blue-bright)"><animate attributeName="opacity" values="0.3;1;0.3" dur="3.2s" repeatCount="indefinite"/></circle>
+          <circle cx="140" cy="360" r="2.4" fill="var(--violet-bright)"><animate attributeName="opacity" values="0.3;1;0.3" dur="2.6s" repeatCount="indefinite" begin=".6s"/></circle>
+          <circle cx="410" cy="450" r="2.4" fill="var(--green-bright)"><animate attributeName="opacity" values="0.3;1;0.3" dur="3.6s" repeatCount="indefinite" begin="1.1s"/></circle>
+        </g>
+      </svg>
+      <div class="hero-copy">
+        <h1>Every <span class="accent">resume</span> tells on itself. Let's read yours closely.</h1>
+        <p>Drop in your resume as a PDF, Word document, or a photo/scan (JPG or PNG). This runs the same scoring, ATS-readiness, skill-extraction and job-matching logic as the original Python engine — entirely in your browser, nothing leaves your device.</p>
+
+        <div class="dropzone" id="dropzone">
+          <div class="scanbar"></div>
+          <input type="file" id="fileInput" accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.jpg,.jpeg,.png,image/jpeg,image/png" />
+          <div class="icon">↑</div>
+          <h3>Drop your resume here</h3>
+          <p>or click to browse — PDF, Word (.docx) or JPG/PNG, max 15MB</p>
+        </div>
+        <div class="status-line hidden" id="statusLine">
+          <div class="spinner"></div>
+          <span id="statusText">Reading document…</span>
+        </div>
+        <div class="error-box hidden" id="errorBox"></div>
+      </div>
+
+      <svg class="hero-illustration" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="docGlow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="var(--blue-bright)"/>
+            <stop offset="100%" stop-color="var(--violet-bright)"/>
+          </linearGradient>
+        </defs>
+        <circle cx="80" cy="80" r="70" fill="url(#docGlow)" opacity="0.06"/>
+        <rect x="30" y="14" width="78" height="104" rx="6" fill="var(--panel)" stroke="var(--text)" stroke-width="2.5"/>
+        <line x1="42" y1="36" x2="96" y2="36" stroke="var(--line-strong)" stroke-width="3"/>
+        <line x1="42" y1="48" x2="96" y2="48" stroke="var(--line-strong)" stroke-width="3"/>
+        <line x1="42" y1="60" x2="82" y2="60" stroke="var(--line-strong)" stroke-width="3"/>
+        <line x1="42" y1="78" x2="96" y2="78" stroke="var(--line-strong)" stroke-width="3"/>
+        <line x1="42" y1="90" x2="96" y2="90" stroke="var(--line-strong)" stroke-width="3"/>
+        <line x1="42" y1="102" x2="72" y2="102" stroke="var(--line-strong)" stroke-width="3"/>
+        <g class="hero-sparkle" style="animation:sparkleFloat 3.4s ease-in-out infinite;">
+          <path d="M100 6 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z" fill="var(--violet-bright)" opacity="0.85"/>
+        </g>
+        <g class="hero-sparkle" style="animation:sparkleFloat 4.2s ease-in-out infinite 1s;">
+          <path d="M24 100 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z" fill="var(--green-bright)" opacity="0.8"/>
+        </g>
+        <circle cx="122" cy="96" r="26" fill="none" stroke="url(#docGlow)" stroke-width="4"/>
+        <line x1="140" y1="114" x2="154" y2="128" stroke="var(--blue-bright)" stroke-width="6" stroke-linecap="round"/>
+        <circle cx="122" cy="96" r="10" fill="var(--green)" opacity="0.25"/>
+        <circle cx="122" cy="96" r="17" fill="none" stroke="var(--blue-bright)" stroke-width="1" opacity="0.4">
+          <animate attributeName="r" values="15;20;15" dur="2.6s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.5;0;0.5" dur="2.6s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+    </div>
+  </div>
+
+  <!-- RESULT VIEW -->
+  <div id="resultView" class="hidden"></div>
+
+</div>
+
+<script>
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('en-US',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'.replace('pdf.min.js','pdf.worker.min.js');
+
+/* ===================== JOBS DATASET (mirrors backend/jobs.csv) ===================== */
+const JOBS = [
+{job_id:1,category:"IT & Software",title:"Frontend Developer",company:"TechNova Solutions",location:"Bengaluru",min_experience:1,required_skills:["javascript","react","react.js","html","css","tailwind","redux","git"],application_url:"https://in.indeed.com/jobs?q=TechNova+Solutions+Frontend+Developer&l=Bengaluru"},
+{job_id:2,category:"IT & Software",title:"Backend Developer (Python)",company:"CloudWorks Inc",location:"Remote",min_experience:2,required_skills:["python","flask","django","rest api","sql","postgresql","docker","git"],application_url:"https://in.indeed.com/jobs?q=CloudWorks+Inc+Backend+Developer+%28Python%29"},
+{job_id:3,category:"IT & Software",title:"Full Stack Developer",company:"Innovate Labs",location:"Hyderabad",min_experience:2,required_skills:["javascript","node.js","react","mongodb","express.js","html","css","git"],application_url:"https://in.indeed.com/jobs?q=Innovate+Labs+Full+Stack+Developer&l=Hyderabad"},
+{job_id:4,category:"IT & Software",title:"Data Scientist",company:"Insight Analytics",location:"Pune",min_experience:2,required_skills:["python","pandas","numpy","scikit-learn","machine learning","statistics","data visualization","sql"],application_url:"https://in.indeed.com/jobs?q=Insight+Analytics+Data+Scientist&l=Pune"},
+{job_id:5,category:"IT & Software",title:"Machine Learning Engineer",company:"NeuralArc AI",location:"Bengaluru",min_experience:3,required_skills:["python","tensorflow","pytorch","machine learning","deep learning","scikit-learn","docker","aws"],application_url:"https://in.indeed.com/jobs?q=NeuralArc+AI+Machine+Learning+Engineer&l=Bengaluru"},
+{job_id:6,category:"IT & Software",title:"NLP Engineer",company:"LinguaTech",location:"Remote",min_experience:2,required_skills:["python","nlp","spacy","nltk","transformers","machine learning","hugging face"],application_url:"https://in.indeed.com/jobs?q=LinguaTech+NLP+Engineer"},
+{job_id:7,category:"IT & Software",title:"Data Analyst",company:"MarketMinds",location:"Chennai",min_experience:1,required_skills:["sql","excel","tableau","power bi","python","pandas","data analysis"],application_url:"https://in.indeed.com/jobs?q=MarketMinds+Data+Analyst&l=Chennai"},
+{job_id:8,category:"IT & Software",title:"DevOps Engineer",company:"InfraCore Systems",location:"Remote",min_experience:3,required_skills:["docker","kubernetes","aws","terraform","ci/cd","linux","bash","jenkins"],application_url:"https://in.indeed.com/jobs?q=InfraCore+Systems+DevOps+Engineer"},
+{job_id:9,category:"IT & Software",title:"Cloud Engineer (AWS)",company:"SkyByte Cloud",location:"Bengaluru",min_experience:2,required_skills:["aws","docker","kubernetes","terraform","linux","python","ci/cd"],application_url:"https://in.indeed.com/jobs?q=SkyByte+Cloud+Cloud+Engineer+%28AWS%29&l=Bengaluru"},
+{job_id:10,category:"IT & Software",title:"Java Backend Developer",company:"Enterprise Systems Co",location:"Mumbai",min_experience:2,required_skills:["java","spring","spring boot","sql","mysql","rest apis","git"],application_url:"https://in.indeed.com/jobs?q=Enterprise+Systems+Co+Java+Backend+Developer&l=Mumbai"},
+{job_id:11,category:"IT & Software",title:"Mobile App Developer (React Native)",company:"AppCraft Studio",location:"Remote",min_experience:2,required_skills:["javascript","react native","react","mobile","git","rest api"],application_url:"https://in.indeed.com/jobs?q=AppCraft+Studio+Mobile+App+Developer+%28React+Native%29"},
+{job_id:12,category:"IT & Software",title:"Android Developer",company:"MobileFirst Technologies",location:"Pune",min_experience:2,required_skills:["kotlin","android","java","git","rest api"],application_url:"https://in.indeed.com/jobs?q=MobileFirst+Technologies+Android+Developer&l=Pune"},
+{job_id:13,category:"IT & Software",title:"iOS Developer",company:"AppSphere",location:"Remote",min_experience:2,required_skills:["swift","ios","swiftui","git"],application_url:"https://in.indeed.com/jobs?q=AppSphere+iOS+Developer"},
+{job_id:14,category:"IT & Software",title:"QA / Test Automation Engineer",company:"QualityFirst Labs",location:"Chennai",min_experience:1,required_skills:["selenium","pytest","junit","test automation","qa","python","git"],application_url:"https://in.indeed.com/jobs?q=QualityFirst+Labs+QA+%2F+Test+Automation+Engineer&l=Chennai"},
+{job_id:15,category:"Design & Creative",title:"UI/UX Designer",company:"PixelPerfect Studio",location:"Bengaluru",min_experience:1,required_skills:["figma","adobe xd","ui/ux","photoshop","html","css"],application_url:"https://in.indeed.com/jobs?q=PixelPerfect+Studio+UI%2FUX+Designer&l=Bengaluru"},
+{job_id:16,category:"IT & Software",title:"Product Manager",company:"Visionary Products",location:"Remote",min_experience:3,required_skills:["product management","agile","scrum","jira","communication","leadership"],application_url:"https://in.indeed.com/jobs?q=Visionary+Products+Product+Manager"},
+{job_id:17,category:"IT & Software",title:"Data Engineer",company:"DataForge Analytics",location:"Hyderabad",min_experience:2,required_skills:["python","sql","pandas","aws","docker","data engineering","postgresql"],application_url:"https://in.indeed.com/jobs?q=DataForge+Analytics+Data+Engineer&l=Hyderabad"},
+{job_id:18,category:"IT & Software",title:"Business Intelligence Analyst",company:"ClearView Insights",location:"Remote",min_experience:2,required_skills:["sql","power bi","tableau","excel","data analysis","data visualization"],application_url:"https://in.indeed.com/jobs?q=ClearView+Insights+Business+Intelligence+Analyst"},
+{job_id:19,category:"IT & Software",title:"Software Engineer (C++)",company:"SystemsCore Technologies",location:"Bengaluru",min_experience:2,required_skills:["c++","linux","git","data structures","algorithms"],application_url:"https://in.indeed.com/jobs?q=SystemsCore+Technologies+Software+Engineer+%28C%2B%2B%29&l=Bengaluru"},
+{job_id:20,category:"IT & Software",title:".NET Developer",company:"CoreStack Solutions",location:"Remote",min_experience:2,required_skills:[".net","asp.net","c#","sql","git","rest api"],application_url:"https://in.indeed.com/jobs?q=CoreStack+Solutions+.NET+Developer"},
+{job_id:21,category:"IT & Software",title:"PHP Developer",company:"WebCraft Technologies",location:"Chennai",min_experience:1,required_skills:["php","laravel","mysql","html","css","javascript"],application_url:"https://in.indeed.com/jobs?q=WebCraft+Technologies+PHP+Developer&l=Chennai"},
+{job_id:22,category:"IT & Software",title:"Ruby on Rails Developer",company:"StartupForge",location:"Remote",min_experience:2,required_skills:["ruby","ruby on rails","postgresql","git","html","css"],application_url:"https://in.indeed.com/jobs?q=StartupForge+Ruby+on+Rails+Developer"},
+{job_id:23,category:"IT & Software",title:"Go Backend Engineer",company:"ScaleUp Systems",location:"Bengaluru",min_experience:2,required_skills:["go","golang","docker","kubernetes","microservices","git"],application_url:"https://in.indeed.com/jobs?q=ScaleUp+Systems+Go+Backend+Engineer&l=Bengaluru"},
+{job_id:24,category:"IT & Software",title:"Computer Vision Engineer",company:"VisionAI Labs",location:"Remote",min_experience:3,required_skills:["python","opencv","deep learning","tensorflow","pytorch","computer vision"],application_url:"https://in.indeed.com/jobs?q=VisionAI+Labs+Computer+Vision+Engineer"},
+{job_id:25,category:"IT & Software",title:"Generative AI Engineer",company:"FutureMind AI",location:"Remote",min_experience:2,required_skills:["python","llm","generative ai","transformers","hugging face","machine learning"],application_url:"https://in.indeed.com/jobs?q=FutureMind+AI+Generative+AI+Engineer"},
+{job_id:26,category:"IT & Software",title:"Database Administrator",company:"DataSecure Corp",location:"Pune",min_experience:3,required_skills:["sql","mysql","postgresql","oracle","linux","bash"],application_url:"https://in.indeed.com/jobs?q=DataSecure+Corp+Database+Administrator&l=Pune"},
+{job_id:27,category:"IT & Software",title:"Site Reliability Engineer",company:"UptimeWorks",location:"Remote",min_experience:3,required_skills:["linux","kubernetes","docker","aws","bash","ci/cd","python"],application_url:"https://in.indeed.com/jobs?q=UptimeWorks+Site+Reliability+Engineer"},
+{job_id:28,category:"IT & Software",title:"Frontend Engineer (Vue)",company:"VueCraft Technologies",location:"Remote",min_experience:1,required_skills:["javascript","vue","vue.js","css","html","git"],application_url:"https://in.indeed.com/jobs?q=VueCraft+Technologies+Frontend+Engineer+%28Vue%29"},
+{job_id:29,category:"IT & Software",title:"Technical Project Manager",company:"BuildRight Consulting",location:"Bengaluru",min_experience:3,required_skills:["project management","agile","scrum","jira","communication","leadership","time management"],application_url:"https://in.indeed.com/jobs?q=BuildRight+Consulting+Technical+Project+Manager&l=Bengaluru"},
+{job_id:30,category:"IT & Software",title:"Junior Software Developer",company:"NextGen Careers",location:"Remote",min_experience:0,required_skills:["python","javascript","git","html","css","sql"],application_url:"https://in.indeed.com/jobs?q=NextGen+Careers+Junior+Software+Developer"},
+{job_id:31,category:"IT & Software",title:"Security Engineer",company:"SecureNet Systems",location:"Remote",min_experience:3,required_skills:["linux","python","networking","security","aws","bash"],application_url:"https://in.indeed.com/jobs?q=SecureNet+Systems+Security+Engineer"},
+{job_id:32,category:"IT & Software",title:"Data Visualization Specialist",company:"ChartWorks Analytics",location:"Remote",min_experience:1,required_skills:["tableau","power bi","data visualization","excel","sql","python"],application_url:"https://in.indeed.com/jobs?q=ChartWorks+Analytics+Data+Visualization+Specialist"},
+{job_id:33,category:"IT & Software",title:"Scala Backend Developer",company:"StreamData Technologies",location:"Bengaluru",min_experience:3,required_skills:["scala","sql","git","microservices","docker"],application_url:"https://in.indeed.com/jobs?q=StreamData+Technologies+Scala+Backend+Developer&l=Bengaluru"},
+{job_id:34,category:"IT & Software",title:"AI Research Engineer",company:"DeepThink Labs",location:"Remote",min_experience:3,required_skills:["python","pytorch","tensorflow","machine learning","deep learning","statistics","nlp"],application_url:"https://in.indeed.com/jobs?q=DeepThink+Labs+AI+Research+Engineer"},
+{job_id:35,category:"Customer Support",title:"Technical Support Engineer",company:"HelpDesk Pro",location:"Chennai",min_experience:1,required_skills:["communication","problem solving","linux","sql","networking"],application_url:"https://in.indeed.com/jobs?q=HelpDesk+Pro+Technical+Support+Engineer&l=Chennai"},
+{job_id:36,category:"IT & Software",title:"Cloud Solutions Architect",company:"NimbusStack Cloud",location:"Bengaluru",min_experience:4,required_skills:["aws","azure","kubernetes","terraform","microservices","docker"],application_url:"https://in.indeed.com/jobs?q=NimbusStack+Cloud+Cloud+Solutions+Architect&l=Bengaluru"},
+{job_id:37,category:"IT & Software",title:"Cybersecurity Analyst",company:"ShieldNet Security",location:"Remote",min_experience:2,required_skills:["security","networking","linux","python","bash"],application_url:"https://in.indeed.com/jobs?q=ShieldNet+Security+Cybersecurity+Analyst"},
+{job_id:38,category:"IT & Software",title:"Systems Administrator",company:"InfraLine IT Services",location:"Chennai",min_experience:2,required_skills:["linux","networking","bash","ansible","nginx"],application_url:"https://in.indeed.com/jobs?q=InfraLine+IT+Services+Systems+Administrator&l=Chennai"},
+{job_id:39,category:"IT & Software",title:"Blockchain Developer",company:"ChainForge Technologies",location:"Remote",min_experience:2,required_skills:["javascript","solidity","node.js","git","blockchain"],application_url:"https://in.indeed.com/jobs?q=ChainForge+Technologies+Blockchain+Developer"},
+{job_id:40,category:"Engineering",title:"Mechanical Design Engineer",company:"Torque Dynamics Pvt Ltd",location:"Chennai",min_experience:1,required_skills:["autocad","solidworks","catia","mechanical design","gd&t"],application_url:"https://in.indeed.com/jobs?q=Torque+Dynamics+Pvt+Ltd+Mechanical+Design+Engineer&l=Chennai"},
+{job_id:41,category:"Engineering",title:"Civil Site Engineer",company:"Buildwell Infrastructure",location:"Hyderabad",min_experience:1,required_skills:["autocad","civil engineering","site supervision","staad pro","estimation"],application_url:"https://in.indeed.com/jobs?q=Buildwell+Infrastructure+Civil+Site+Engineer&l=Hyderabad"},
+{job_id:42,category:"Engineering",title:"Electrical Design Engineer",company:"VoltCore Electricals",location:"Pune",min_experience:2,required_skills:["electrical design","autocad electrical","plc","scada","circuit design"],application_url:"https://in.indeed.com/jobs?q=VoltCore+Electricals+Electrical+Design+Engineer&l=Pune"},
+{job_id:43,category:"Engineering",title:"Production Engineer",company:"PrecisionWorks Manufacturing",location:"Coimbatore",min_experience:1,required_skills:["production planning","quality control","lean manufacturing","six sigma","autocad"],application_url:"https://in.indeed.com/jobs?q=PrecisionWorks+Manufacturing+Production+Engineer&l=Coimbatore"},
+{job_id:44,category:"Finance & Accounting",title:"Accountant",company:"LedgerPoint Financial Services",location:"Chennai",min_experience:1,required_skills:["accounting","tally","gst","bookkeeping","excel","reconciliation"],application_url:"https://in.indeed.com/jobs?q=LedgerPoint+Financial+Services+Accountant&l=Chennai"},
+{job_id:45,category:"Finance & Accounting",title:"Financial Analyst",company:"Meridian Capital Advisors",location:"Mumbai",min_experience:2,required_skills:["financial modeling","financial analysis","excel","valuation","forecasting"],application_url:"https://in.indeed.com/jobs?q=Meridian+Capital+Advisors+Financial+Analyst&l=Mumbai"},
+{job_id:46,category:"Finance & Accounting",title:"Tax Consultant",company:"ClearTax Associates",location:"Remote",min_experience:2,required_skills:["taxation","gst","income tax","auditing","accounting"],application_url:"https://in.indeed.com/jobs?q=ClearTax+Associates+Tax+Consultant"},
+{job_id:47,category:"Finance & Accounting",title:"Investment Banking Analyst",company:"Sterling & Rowe Capital",location:"Mumbai",min_experience:2,required_skills:["financial modeling","valuation","investment banking","excel","equity research"],application_url:"https://in.indeed.com/jobs?q=Sterling+%26+Rowe+Capital+Investment+Banking+Analyst&l=Mumbai"},
+{job_id:48,category:"Sales & Marketing",title:"Sales Executive",company:"Apex Business Solutions",location:"Chennai",min_experience:0,required_skills:["sales","negotiation","lead generation","crm","communication"],application_url:"https://in.indeed.com/jobs?q=Apex+Business+Solutions+Sales+Executive&l=Chennai"},
+{job_id:49,category:"Sales & Marketing",title:"Digital Marketing Specialist",company:"BrightWave Media",location:"Remote",min_experience:1,required_skills:["digital marketing","seo","sem","google analytics","content marketing","social media marketing"],application_url:"https://in.indeed.com/jobs?q=BrightWave+Media+Digital+Marketing+Specialist"},
+{job_id:50,category:"Sales & Marketing",title:"Business Development Executive",company:"Growthline Ventures",location:"Bengaluru",min_experience:1,required_skills:["business development","sales","negotiation","market research","communication"],application_url:"https://in.indeed.com/jobs?q=Growthline+Ventures+Business+Development+Executive&l=Bengaluru"},
+{job_id:51,category:"Sales & Marketing",title:"Marketing Manager",company:"Vantage Brand Group",location:"Mumbai",min_experience:3,required_skills:["marketing","brand management","market research","digital marketing","leadership"],application_url:"https://in.indeed.com/jobs?q=Vantage+Brand+Group+Marketing+Manager&l=Mumbai"},
+{job_id:52,category:"HR & Recruitment",title:"HR Executive",company:"PeopleFirst HR Solutions",location:"Chennai",min_experience:1,required_skills:["hr","recruitment","onboarding","payroll","communication"],application_url:"https://in.indeed.com/jobs?q=PeopleFirst+HR+Solutions+HR+Executive&l=Chennai"},
+{job_id:53,category:"HR & Recruitment",title:"Talent Acquisition Specialist",company:"HireSphere Consulting",location:"Remote",min_experience:2,required_skills:["talent acquisition","recruitment","sourcing","interviewing","ats"],application_url:"https://in.indeed.com/jobs?q=HireSphere+Consulting+Talent+Acquisition+Specialist"},
+{job_id:54,category:"HR & Recruitment",title:"HR Manager",company:"Corporate Harmony Inc",location:"Bengaluru",min_experience:4,required_skills:["hr","performance management","employee engagement","labor law","leadership"],application_url:"https://in.indeed.com/jobs?q=Corporate+Harmony+Inc+HR+Manager&l=Bengaluru"},
+{job_id:55,category:"Healthcare",title:"Staff Nurse",company:"CareWell Multispeciality Hospital",location:"Chennai",min_experience:1,required_skills:["nursing","patient care","clinical","cpr","first aid"],application_url:"https://in.indeed.com/jobs?q=CareWell+Multispeciality+Hospital+Staff+Nurse&l=Chennai"},
+{job_id:56,category:"Healthcare",title:"Medical Coder",company:"HealthData Solutions",location:"Remote",min_experience:1,required_skills:["medical coding","icd-10","medical terminology","healthcare administration"],application_url:"https://in.indeed.com/jobs?q=HealthData+Solutions+Medical+Coder"},
+{job_id:57,category:"Healthcare",title:"Pharmacist",company:"MedLife Pharmacy Chain",location:"Pune",min_experience:1,required_skills:["pharmacology","patient care","medical terminology","dispensing"],application_url:"https://in.indeed.com/jobs?q=MedLife+Pharmacy+Chain+Pharmacist&l=Pune"},
+{job_id:58,category:"Healthcare",title:"Healthcare Administrator",company:"Wellness Point Clinics",location:"Hyderabad",min_experience:2,required_skills:["healthcare administration","ehr","emr","patient management","communication"],application_url:"https://in.indeed.com/jobs?q=Wellness+Point+Clinics+Healthcare+Administrator&l=Hyderabad"},
+{job_id:59,category:"Education",title:"School Teacher",company:"Bright Minds Academy",location:"Chennai",min_experience:1,required_skills:["teaching","lesson planning","classroom management","curriculum development"],application_url:"https://in.indeed.com/jobs?q=Bright+Minds+Academy+School+Teacher&l=Chennai"},
+{job_id:60,category:"Education",title:"Online Tutor",company:"LearnSphere EdTech",location:"Remote",min_experience:0,required_skills:["teaching","tutoring","communication","subject expertise"],application_url:"https://in.indeed.com/jobs?q=LearnSphere+EdTech+Online+Tutor"},
+{job_id:61,category:"Education",title:"Curriculum Designer",company:"EduCraft Learning Systems",location:"Remote",min_experience:2,required_skills:["curriculum development","instructional design","e-learning","content development"],application_url:"https://in.indeed.com/jobs?q=EduCraft+Learning+Systems+Curriculum+Designer"},
+{job_id:62,category:"Design & Creative",title:"Graphic Designer",company:"PixelForge Creative Studio",location:"Bengaluru",min_experience:1,required_skills:["graphic design","adobe illustrator","photoshop","branding","typography"],application_url:"https://in.indeed.com/jobs?q=PixelForge+Creative+Studio+Graphic+Designer&l=Bengaluru"},
+{job_id:63,category:"Design & Creative",title:"Video Editor",company:"FrameworksMedia Productions",location:"Remote",min_experience:1,required_skills:["video editing","premiere pro","after effects","animation"],application_url:"https://in.indeed.com/jobs?q=FrameworksMedia+Productions+Video+Editor"},
+{job_id:64,category:"Design & Creative",title:"Content Writer",company:"WordSmith Media House",location:"Remote",min_experience:0,required_skills:["content writing","copywriting","seo","communication","research"],application_url:"https://in.indeed.com/jobs?q=WordSmith+Media+House+Content+Writer"},
+{job_id:65,category:"Customer Support",title:"Customer Support Executive",company:"ServeFirst Customer Solutions",location:"Chennai",min_experience:0,required_skills:["customer service","communication","problem solving","crm"],application_url:"https://in.indeed.com/jobs?q=ServeFirst+Customer+Solutions+Customer+Support+Executive&l=Chennai"},
+{job_id:66,category:"Customer Support",title:"Call Center Executive",company:"ConnectHub BPO Services",location:"Remote",min_experience:0,required_skills:["customer service","communication","call handling","crm"],application_url:"https://in.indeed.com/jobs?q=ConnectHub+BPO+Services+Call+Center+Executive"},
+{job_id:67,category:"Customer Support",title:"Customer Success Manager",company:"ClientCircle SaaS",location:"Bengaluru",min_experience:2,required_skills:["customer success","account management","communication","crm","problem solving"],application_url:"https://in.indeed.com/jobs?q=ClientCircle+SaaS+Customer+Success+Manager&l=Bengaluru"},
+{job_id:68,category:"Government Jobs",title:"Bank Probationary Officer",company:"National Cooperative Bank",location:"Chennai",min_experience:0,required_skills:["banking","general awareness","quantitative aptitude","reasoning","communication"],application_url:"https://in.indeed.com/jobs?q=National+Cooperative+Bank+Bank+Probationary+Officer&l=Chennai"},
+{job_id:69,category:"Government Jobs",title:"SSC Clerk (Multi-Tasking Staff)",company:"State Public Service Commission",location:"Chennai",min_experience:0,required_skills:["ms office","typing","general knowledge","office administration"],application_url:"https://in.indeed.com/jobs?q=State+Public+Service+Commission+SSC+Clerk+%28Multi-Tasking+Staff%29&l=Chennai"},
+{job_id:70,category:"Government Jobs",title:"Public Sector Engineer Trainee",company:"National Power Corporation Ltd",location:"Hyderabad",min_experience:0,required_skills:["electrical engineering","mechanical design","general aptitude","technical knowledge"],application_url:"https://in.indeed.com/jobs?q=National+Power+Corporation+Ltd+Public+Sector+Engineer+Trainee&l=Hyderabad"},
+{job_id:71,category:"Internships & Fresher Jobs",title:"Software Development Intern",company:"CodeSprint Labs",location:"Remote",min_experience:0,required_skills:["python","javascript","git","problem solving"],application_url:"https://in.indeed.com/jobs?q=CodeSprint+Labs+Software+Development+Intern"},
+{job_id:72,category:"Internships & Fresher Jobs",title:"Marketing Intern",company:"BrightWave Media",location:"Remote",min_experience:0,required_skills:["digital marketing","social media marketing","communication","content marketing"],application_url:"https://in.indeed.com/jobs?q=BrightWave+Media+Marketing+Intern"},
+{job_id:73,category:"Internships & Fresher Jobs",title:"HR Intern",company:"PeopleFirst HR Solutions",location:"Chennai",min_experience:0,required_skills:["hr","communication","ms office","recruitment"],application_url:"https://in.indeed.com/jobs?q=PeopleFirst+HR+Solutions+HR+Intern&l=Chennai"},
+{job_id:74,category:"Internships & Fresher Jobs",title:"Business Analyst Trainee",company:"Insight Analytics",location:"Pune",min_experience:0,required_skills:["excel","sql","data analysis","communication","problem solving"],application_url:"https://in.indeed.com/jobs?q=Insight+Analytics+Business+Analyst+Trainee&l=Pune"},
+{job_id:75,category:"Retail, Hospitality & General Jobs",title:"Retail Store Manager",company:"UrbanMart Retail Chain",location:"Chennai",min_experience:2,required_skills:["retail sales","inventory management","team management","customer service"],application_url:"https://in.indeed.com/jobs?q=UrbanMart+Retail+Chain+Retail+Store+Manager&l=Chennai"},
+{job_id:76,category:"Retail, Hospitality & General Jobs",title:"Hotel Front Desk Executive",company:"Grand Horizon Hotels",location:"Bengaluru",min_experience:0,required_skills:["hospitality management","customer service","communication","front desk operations"],application_url:"https://in.indeed.com/jobs?q=Grand+Horizon+Hotels+Hotel+Front+Desk+Executive&l=Bengaluru"},
+{job_id:77,category:"Retail, Hospitality & General Jobs",title:"Warehouse Associate",company:"SwiftLogix Supply Chain",location:"Mumbai",min_experience:0,required_skills:["inventory management","warehouse management","logistics","supply chain"],application_url:"https://in.indeed.com/jobs?q=SwiftLogix+Supply+Chain+Warehouse+Associate&l=Mumbai"},
+];
+
+/* ===================== SKILLS_DB (mirrors backend/resume_parser.py) ===================== */
+const SKILLS_DB = [
+"python","java","javascript","typescript","c++","c#","c","go","golang","rust","ruby","php","swift","kotlin","scala","r","matlab","perl","dart",
+"html","css","sass","react","react.js","angular","vue","vue.js","next.js","redux","tailwind","tailwind css","bootstrap","jquery","webpack","vite",
+"node.js","express","express.js","flask","django","fastapi","spring","spring boot","asp.net",".net","laravel","ruby on rails","graphql","rest api","rest apis","grpc",
+"sql","mysql","postgresql","postgres","mongodb","sqlite","redis","oracle","cassandra","dynamodb","firebase","elasticsearch",
+"machine learning","deep learning","nlp","natural language processing","computer vision","data analysis","data science","data engineering",
+"pandas","numpy","scikit-learn","sklearn","tensorflow","pytorch","keras","opencv","spacy","nltk","hugging face","transformers","llm","generative ai",
+"statistics","data visualization","tableau","power bi","excel",
+"aws","azure","gcp","google cloud","docker","kubernetes","terraform","jenkins","ci/cd","git","github","gitlab","linux","bash","shell scripting","nginx","ansible","microservices",
+"android","ios","react native","flutter","swiftui",
+"project management","agile","scrum","jira","communication","leadership","teamwork","problem solving","time management","critical thinking",
+"product management","ui/ux","figma","adobe xd","photoshop",
+"unit testing","selenium","pytest","junit","test automation","qa","blockchain","solidity",
+/* Engineering (core/non-software) */
+"autocad","solidworks","catia","mechanical design","gd&t","civil engineering","site supervision","staad pro","estimation",
+"electrical design","autocad electrical","plc","scada","circuit design","production planning","quality control","lean manufacturing","six sigma",
+/* Finance & Accounting */
+"accounting","tally","gst","bookkeeping","reconciliation","financial modeling","financial analysis","valuation","forecasting",
+"taxation","income tax","auditing","investment banking","equity research","sap fico","ifrs","gaap","budgeting",
+/* Sales & Marketing */
+"sales","negotiation","lead generation","crm","digital marketing","seo","sem","google analytics","content marketing","social media marketing",
+"business development","market research","brand management","marketing","copywriting","content writing","email marketing",
+/* HR & Recruitment */
+"hr","human resources","recruitment","onboarding","payroll","talent acquisition","sourcing","interviewing","ats",
+"performance management","employee engagement","labor law",
+/* Healthcare */
+"nursing","patient care","clinical","cpr","first aid","medical coding","icd-10","medical terminology","healthcare administration",
+"pharmacology","dispensing","ehr","emr","patient management",
+/* Education */
+"teaching","lesson planning","classroom management","curriculum development","tutoring","instructional design","e-learning","content development","subject expertise",
+/* Design & Creative */
+"graphic design","adobe illustrator","branding","typography","video editing","premiere pro","after effects","animation",
+/* Customer Support */
+"customer service","customer success","account management","call handling","helpdesk","ticketing systems","zendesk",
+/* Government / General office */
+"banking","general awareness","quantitative aptitude","reasoning","ms office","typing","general knowledge","office administration","technical knowledge",
+/* Retail, Hospitality & General */
+"retail sales","inventory management","team management","hospitality management","front desk operations","warehouse management","logistics","supply chain"
+];
+
+const ACTION_VERBS = ["developed","built","designed","implemented","led","managed","created","improved","optimized","increased","reduced","launched","delivered","achieved","automated","architected","analyzed","collaborated","mentored"];
+
+const SECTION_HEADERS = {
+  education:["education","academic background","qualification"],
+  experience:["experience","work experience","employment history","professional experience"],
+  projects:["projects","personal projects","academic projects"],
+  certifications:["certifications","certificates","licenses"],
+  skills:["skills","technical skills","core competencies"]
+};
+
+const EMAIL_RE = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/;
+const PHONE_RE = /(\+?\d{1,3}[\s-]?)?(\(?\d{3,4}\)?[\s-]?)\d{3}[\s-]?\d{3,4}/;
+
+/* ===================== PARSING (mirrors resume_parser.py) ===================== */
+function splitIntoSections(text){
+  const lines = text.split("\n").map(l=>l.trim());
+  const sections = {education:[],experience:[],projects:[],certifications:[],skills:[]};
+  let current = null;
+  for(const line of lines){
+    const lower = line.toLowerCase().replace(/^[\s:-]+|[\s:-]+$/g,'');
+    let matched = null;
+    for(const [section, headers] of Object.entries(SECTION_HEADERS)){
+      if(headers.includes(lower)){ matched = section; break; }
+    }
+    if(matched){ current = matched; continue; }
+    if(current && line){ sections[current].push(line); }
+  }
+  return sections;
+}
+
+function extractName(text, lines){
+  for(const raw of lines.slice(0,6)){
+    const line = raw.trim();
+    if(!line) continue;
+    if(EMAIL_RE.test(line) || PHONE_RE.test(line)) continue;
+    const words = line.split(/\s+/);
+    if(words.length>=1 && words.length<=4 && words.every(w=>/^[a-zA-Z.]+$/.test(w))){
+      return line.replace(/\w\S*/g, t=>t.charAt(0).toUpperCase()+t.substr(1).toLowerCase());
+    }
+  }
+  return "Unknown Candidate";
+}
+
+function extractSkills(text){
+  const lower = text.toLowerCase();
+  const found = new Set();
+  for(const skill of SKILLS_DB){
+    const esc = skill.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const pattern = new RegExp("(?<![a-zA-Z0-9])"+esc+"(?![a-zA-Z0-9])");
+    if(pattern.test(lower)) found.add(skill);
+  }
+  return Array.from(found).sort();
+}
+
+function extractExperienceYears(text){
+  const matches = [...text.toLowerCase().matchAll(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs)\b/g)];
+  const years = matches.map(m=>parseFloat(m[1]));
+  return years.length ? Math.max(...years) : 0.0;
+}
+
+function parseResume(text){
+  const lines = text.split("\n").filter(l=>l.trim());
+  const emailMatch = text.match(EMAIL_RE);
+  const phoneMatch = text.match(PHONE_RE);
+  const sections = splitIntoSections(text);
+  return {
+    name: extractName(text, lines),
+    email: emailMatch ? emailMatch[0] : null,
+    phone: phoneMatch ? phoneMatch[0].trim() : null,
+    skills: extractSkills(text),
+    education: sections.education.slice(0,10),
+    experience: sections.experience.slice(0,15),
+    projects: sections.projects.slice(0,15),
+    certifications: sections.certifications.slice(0,10),
+    experience_years: extractExperienceYears(text),
+    raw_text: text,
+    word_count: text.split(/\s+/).filter(Boolean).length
+  };
+}
+
+/* ===================== SCORING (mirrors scorer.py) ===================== */
+function calcResumeScore(data){
+  const b = {};
+  let contact = 0;
+  if(data.email) contact += 8;
+  if(data.phone) contact += 7;
+  b.contact_info = contact;
+  b.skills = Math.min(25, Math.round(data.skills.length*2.0));
+  const expLines = data.experience.length;
+  const expYears = data.experience_years;
+  const expScore = Math.min(12, expLines) + Math.min(8, expYears*2);
+  b.experience = Math.min(20, Math.round(expScore));
+  b.education = Math.min(15, data.education.length*5);
+  b.projects = Math.min(15, data.projects.length*3);
+  b.certifications = Math.min(10, data.certifications.length*5);
+  let total = Object.values(b).reduce((a,c)=>a+c,0);
+  total = Math.max(0, Math.min(100, Math.round(total)));
+  return {total, breakdown:b};
+}
+
+function calcAtsScore(data){
+  const b = {};
+  const rawLower = (data.raw_text||"").toLowerCase();
+  const wc = data.word_count;
+  const sectionsPresent = [data.education.length>0, data.experience.length>0, data.skills.length>0, data.projects.length>0, data.certifications.length>0].filter(Boolean).length;
+  b.section_structure = Math.round((sectionsPresent/5)*30);
+  let contactPts = 0;
+  if(data.email) contactPts += 8;
+  if(data.phone) contactPts += 7;
+  b.contact_parseable = contactPts;
+  let lengthPts;
+  if(wc>=300 && wc<=900) lengthPts=20;
+  else if((wc>=150 && wc<300) || (wc>900 && wc<=1200)) lengthPts=12;
+  else lengthPts=5;
+  b.length = lengthPts;
+  const verbsFound = ACTION_VERBS.filter(v=>rawLower.includes(v)).length;
+  b.action_verbs = Math.min(15, verbsFound*2);
+  b.keyword_density = Math.min(20, data.skills.length*1.5);
+  let total = Object.values(b).reduce((a,c)=>a+c,0);
+  total = Math.max(0, Math.min(100, Math.round(total)));
+  return {total, breakdown:b};
+}
+
+function generateSuggestions(data, resumeResult, atsResult){
+  const s = [];
+  if(!data.email) s.push("Add a professional email address near the top of your resume.");
+  if(!data.phone) s.push("Add a phone number so recruiters can reach you directly.");
+  if(data.skills.length<8) s.push("List more relevant technical and soft skills — aim for at least 8-12 targeted keywords.");
+  if(!data.projects.length) s.push("Add a Projects section highlighting 2-3 concrete examples of your work.");
+  if(!data.certifications.length) s.push("Consider adding relevant certifications to strengthen your credibility.");
+  if(data.experience_years===0) s.push("Quantify your experience — mention how many years you've worked in relevant roles.");
+  const wc = data.word_count;
+  if(wc<300) s.push("Your resume looks short — add more detail about your achievements and responsibilities.");
+  else if(wc>1200) s.push("Your resume is quite long — trim it down to the most relevant, recent experience (aim for 1-2 pages).");
+  const rawLower = (data.raw_text||"").toLowerCase();
+  const verbsFound = ACTION_VERBS.filter(v=>rawLower.includes(v)).length;
+  if(verbsFound<4) s.push("Use more strong action verbs (e.g. 'developed', 'led', 'optimized') to describe your accomplishments.");
+  if(atsResult.breakdown.section_structure<24) s.push("Use clear, standard section headings (Education, Experience, Skills, Projects, Certifications) to improve ATS parsing.");
+  if(!s.length) s.push("Great job! Your resume covers the key sections well — keep it updated with your latest achievements.");
+  return s;
+}
+
+/* ===================== JOB MATCHING (all roles at or above minPct) ===================== */
+function matchJobs(resumeSkills, minPct=40){
+  const resumeSet = new Set(resumeSkills.map(s=>s.toLowerCase()));
+  const missingCounter = {};
+  const scored = JOBS.map(job=>{
+    const required = new Set(job.required_skills);
+    const matched = [...required].filter(s=>resumeSet.has(s)).sort();
+    const missing = [...required].filter(s=>!resumeSet.has(s)).sort();
+    const pct = required.size ? Math.round(matched.length/required.size*100) : 0;
+    return {...job, matched_skills:matched, missing_skills:missing, match_percentage:pct};
+  });
+  const matches = scored
+    .filter(j=>j.match_percentage>=minPct)
+    .sort((a,b)=> b.match_percentage-a.match_percentage || a.min_experience-b.min_experience);
+  scored.filter(j=>j.matched_skills.length).forEach(j=>j.missing_skills.forEach(m=>missingCounter[m]=(missingCounter[m]||0)+1));
+  const overallMissing = Object.entries(missingCounter).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>e[0]);
+  const best = {};
+  scored.forEach(j=>{ const c=j.category||'Other'; if(!best[c] || j.match_percentage>best[c].match_percentage) best[c]=j; });
+  const sectors = Object.entries(best).map(([category,j])=>({category, best_pct:j.match_percentage, best_title:j.title, count:matches.filter(m=>m.category===category).length}))
+    .sort((a,b)=>b.best_pct-a.best_pct);
+  return {matches, overall_missing_skills: overallMissing, sectors};
+}
+
+/* ===================== ATS IMPROVEMENT CHECKLIST ===================== */
+function atsBoosters(data, ats, jobResult){
+  const b = ats.breakdown, out = [];
+  const raw = (data.raw_text||"").toLowerCase();
+  const names = {education:'Education', experience:'Experience', skills:'Skills', projects:'Projects', certifications:'Certifications'};
+  const absent = Object.keys(names).filter(k=> k==='skills' ? !data.skills.length : !data[k].length).map(k=>names[k]);
+  if(absent.length) out.push({pts:30-b.section_structure, t:`Add clearly headed sections for: ${absent.join(', ')}. Use plain standard headings so parsers recognise them.`});
+  if(b.contact_parseable<15) out.push({pts:15-b.contact_parseable, t:'Put a plain-text email and phone number at the very top — not inside a header, image or text box.'});
+  if(b.length<20) out.push({pts:20-b.length, t:`Bring the resume into the 300–900 word range (currently ${data.word_count} words).`});
+  if(b.action_verbs<15){
+    const unused = ACTION_VERBS.filter(v=>!raw.includes(v)).slice(0,6);
+    out.push({pts:15-b.action_verbs, t:`Start bullet points with strong action verbs, e.g. ${unused.join(', ')}.`});
+  }
+  if(b.keyword_density<20){
+    const kw = jobResult.overall_missing_skills.slice(0,8);
+    out.push({pts:Math.round(20-b.keyword_density), t:`Add more role keywords you genuinely have (each recognised skill = 1.5 pts, max 20)${kw.length?'. Most-requested gaps: '+kw.join(', '):''}.`});
+  }
+  [
+    'Mirror the exact wording of the job description (e.g. "React.js" vs "React") — ATS matches keywords literally.',
+    'Use a single-column layout with standard fonts; avoid tables, icons, photos and skill-rating bars.',
+    'Quantify results in bullets (%, users, time saved, marks/rank) — e.g. "Reduced load time by 30%".',
+    'Add GitHub / LinkedIn / portfolio links as plain text, and list tools with the project they were used in.',
+    'Keep date formats consistent (MMM YYYY) and submit as a text-based PDF or .docx, not a scanned image.',
+    'Tailor a version of the resume per role: put the matching skills first in the Skills section.'
+  ].forEach(t=>out.push({pts:0, t}));
+  return out;
+}
+
+/* ===================== PDF TEXT EXTRACTION ===================== */
+async function extractTextFromPdf(arrayBuffer){
+  const pdf = await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+  let text = "";
+  for(let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const lines = {};
+    content.items.forEach(item=>{
+      const y = Math.round(item.transform[5]);
+      if(!lines[y]) lines[y] = [];
+      lines[y].push(item.str);
+    });
+    const ys = Object.keys(lines).map(Number).sort((a,b)=>b-a);
+    for(const y of ys){ text += lines[y].join(" ") + "\n"; }
+    text += "\n";
+  }
+  return text;
+}
+
+/* ===================== WORD (.docx) TEXT EXTRACTION ===================== */
+async function extractTextFromDocx(arrayBuffer){
+  const result = await mammoth.extractRawText({arrayBuffer});
+  return result.value;
+}
+
+/* ===================== IMAGE (JPG/PNG) OCR TEXT EXTRACTION ===================== */
+async function extractTextFromImage(file, onProgress){
+  const worker = await Tesseract.createWorker('eng', 1, {
+    logger: m => {
+      if(m.status === 'recognizing text' && typeof m.progress === 'number' && onProgress){
+        onProgress(m.progress);
+      }
+    }
+  });
+  try{
+    const { data } = await worker.recognize(file);
+    return data.text;
+  } finally {
+    await worker.terminate();
+  }
+}
+
+/* ===================== UI ===================== */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const statusLine = document.getElementById('statusLine');
+const statusText = document.getElementById('statusText');
+const errorBox = document.getElementById('errorBox');
+const uploadView = document.getElementById('uploadView');
+const resultView = document.getElementById('resultView');
+
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+let lastAnalysis = null;
+
+function detectFileKind(file){
+  const name = file.name.toLowerCase();
+  const type = file.type || "";
+  if(type === 'application/pdf' || name.endsWith('.pdf')) return 'pdf';
+  if(name.endsWith('.docx') || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return 'docx';
+  if(name.endsWith('.doc') && !name.endsWith('.docx')) return 'doc-legacy';
+  if(['.jpg','.jpeg','.png'].some(ext=>name.endsWith(ext)) || type === 'image/jpeg' || type === 'image/png') return 'image';
+  return 'unknown';
+}
+
+async function handleFile(file){
+  errorBox.classList.add('hidden');
+  const kind = detectFileKind(file);
+
+  if(kind === 'doc-legacy'){
+    showError("Old .doc format isn't supported in-browser — please save/export it as .docx, PDF, or a JPG/PNG scan and try again.");
+    return;
+  }
+  if(kind === 'unknown'){
+    showError("Unsupported file type. Please upload a PDF, Word document (.docx), or an image (JPG/PNG).");
+    return;
+  }
+  if(file.size > 15*1024*1024){
+    showError("File is too large — max size is 15MB.");
+    return;
+  }
+
+  statusLine.classList.remove('hidden');
+  dropzone.classList.add('scanning');
+  statusText.textContent = "Reading document…";
+  try{
+    let text = "";
+    if(kind === 'pdf'){
+      const buf = await file.arrayBuffer();
+      text = await extractTextFromPdf(buf);
+      if(!text.trim()){
+        throw new Error("Could not extract any text from this PDF. It may be a scanned image without a text layer — try uploading it as a JPG/PNG instead so OCR can read it.");
+      }
+    } else if(kind === 'docx'){
+      const buf = await file.arrayBuffer();
+      text = await extractTextFromDocx(buf);
+      if(!text.trim()){
+        throw new Error("Could not extract any text from this Word document.");
+      }
+    } else if(kind === 'image'){
+      statusText.textContent = "Running OCR on image… 0%";
+      text = await extractTextFromImage(file, (progress)=>{
+        statusText.textContent = `Running OCR on image… ${Math.round(progress*100)}%`;
+      });
+      if(!text.trim()){
+        throw new Error("Could not read any text from this image. Make sure the photo is clear, well-lit, and right-side up.");
+      }
+    }
+
+    statusText.textContent = "Extracting fields & scoring…";
+    await new Promise(r=>setTimeout(r, 150));
+
+    const extracted = parseResume(text);
+    const resumeScore = calcResumeScore(extracted);
+    const atsScore = calcAtsScore(extracted);
+    const suggestions = generateSuggestions(extracted, resumeScore, atsScore);
+    const jobResult = matchJobs(extracted.skills, 40);
+
+    lastAnalysis = {extracted, resumeScore, atsScore, suggestions, jobResult, filename:file.name};
+    renderResults(lastAnalysis);
+    uploadView.classList.add('hidden');
+    resultView.classList.remove('hidden');
+  }catch(err){
+    console.error(err);
+    showError("Failed to analyze resume: " + err.message);
+  }finally{
+    statusLine.classList.add('hidden');
+    dropzone.classList.remove('scanning');
+  }
+}
+
+function showError(msg){
+  errorBox.textContent = msg;
+  errorBox.classList.remove('hidden');
+}
+
+function gaugeSvg(score, color, id){
+  const r = 40, c = 2*Math.PI*r;
+  return `<svg width="96" height="96" viewBox="0 0 96 96" style="flex-shrink:0;">
+    <circle cx="48" cy="48" r="${r}" fill="none" stroke="var(--line)" stroke-width="8"/>
+    <circle id="${id}" class="gauge-circle-fg" cx="48" cy="48" r="${r}" fill="none" stroke="${color}" stroke-width="8" style="color:${color};"
+      stroke-dasharray="${c}" stroke-dashoffset="${c}" stroke-linecap="round"
+      transform="rotate(-90 48 48)" data-target="${c - (score/100)*c}"/>
+    <text id="${id}-num" x="48" y="53" text-anchor="middle" font-family="IBM Plex Mono" font-size="22" font-weight="600" fill="var(--text)">0</text>
+  </svg>`;
+}
+
+function breakdownRows(breakdown, maxes, prefix){
+  return Object.entries(breakdown).map(([k,v],i)=>{
+    const max = maxes[k];
+    const pct = Math.min(100, (v/max)*100);
+    const label = k.replace(/_/g,' ');
+    return `<div class="breakdown-row"><span>${label}</span><span>${v}/${max}</span></div>
+      <div class="breakdown-bar"><div id="${prefix}-bar-${i}" data-target="${pct}"></div></div>`;
+  }).join('');
+}
+
+function animateNumber(el, target, duration=1100){
+  const start = performance.now();
+  function step(now){
+    const t = Math.min(1, (now-start)/duration);
+    const eased = 1 - Math.pow(1-t, 3);
+    el.textContent = Math.round(eased*target);
+    if(t<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function runEntranceAnimations(){
+  document.querySelectorAll('.gauge-circle-fg').forEach(circle=>{
+    const target = parseFloat(circle.dataset.target);
+    requestAnimationFrame(()=>{ setTimeout(()=>{ circle.style.strokeDashoffset = target; }, 60); });
+  });
+  document.querySelectorAll('[id^="resume-bar-"], [id^="ats-bar-"]').forEach(bar=>{
+    const target = parseFloat(bar.dataset.target);
+    requestAnimationFrame(()=>{ setTimeout(()=>{ bar.style.width = target + '%'; }, 100); });
+  });
+  document.querySelectorAll('.suggestion-list li').forEach((li,i)=>{
+    li.style.animationDelay = (i*0.06) + 's';
+  });
+  document.querySelectorAll('.job-card').forEach((card,i)=>{
+    card.style.animationDelay = (i*0.07) + 's';
+    const stamp = card.querySelector('.match-stamp');
+    if(stamp) stamp.style.animationDelay = (i*0.07 + 0.15) + 's';
+  });
+  document.querySelectorAll('.tag-wrap .tag').forEach((tag,i)=>{
+    tag.style.animationDelay = (i*0.025) + 's';
+  });
+  document.querySelectorAll('.reveal-block').forEach((el,i)=>{
+    el.style.animationDelay = (i*0.08) + 's';
+  });
+}
+
+function renderResults(a){
+  const {extracted, resumeScore, atsScore, suggestions, jobResult, filename} = a;
+
+  const resumeMaxes = {contact_info:15, skills:25, experience:20, education:15, projects:15, certifications:10};
+  const atsMaxes = {section_structure:30, contact_parseable:15, length:20, action_verbs:15, keyword_density:20};
+
+  const skillTags = extracted.skills.length
+    ? extracted.skills.map(s=>`<span class="tag">${escapeHtml(s)}</span>`).join('')
+    : `<span class="tag empty">No recognized skills detected</span>`;
+
+  const suggestionItems = suggestions.map((s,i)=>`<li><span class="idx">${String(i+1).padStart(2,'0')}</span><span>${escapeHtml(s)}</span></li>`).join('');
+
+  const indeedDefaultQuery = jobResult.matches[0]
+    ? jobResult.matches[0].title
+    : extracted.skills.slice(0,3).join(' ');
+
+  const renderJobCard = (job)=>{
+    const matchedPills = job.matched_skills.map(s=>`<span class="skill-pill have">${escapeHtml(s)}</span>`).join('');
+    const missingPills = job.missing_skills.slice(0,8).map(s=>`<span class="skill-pill missing">${escapeHtml(s)}</span>`).join('');
+    const stampClass = job.match_percentage >= 60 ? 'match-stamp high' : 'match-stamp';
+    return `
+    <div class="job-card">
+      <div class="job-top">
+        <div>
+          <div class="job-title">${escapeHtml(job.title)}</div>
+          <div class="job-company"><span>${escapeHtml(job.company)}</span> — ${escapeHtml(job.location)} <span class="job-cat">${escapeHtml(job.category || '')}</span></div>
+        </div>
+        <div class="${stampClass}">${job.match_percentage}%<small>MATCH</small></div>
+      </div>
+      <div class="job-meta">MIN. EXPERIENCE ${job.min_experience} YR${job.min_experience===1?'':'S'}</div>
+      <div class="job-skills">${matchedPills}${missingPills}</div>
+      ${jobLinks(job)}
+      <div class="job-footer">
+        <button class="apply-btn" data-url="${escapeAttr(job.application_url)}">Apply Now
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4L10 14" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>`;
+  };
+  const groups = {};
+  jobResult.matches.forEach(j=>{ (groups[j.category||'Other'] = groups[j.category||'Other'] || []).push(j); });
+  const jobCards = jobResult.matches.length
+    ? Object.entries(groups).sort((a,b)=>b[1][0].match_percentage-a[1][0].match_percentage).map(([cat, list])=>
+        `<div class="sector-head"><span>${escapeHtml(cat)}</span><b>${list.length} role${list.length===1?'':'s'}</b></div>` + list.map(renderJobCard).join('')).join('')
+    : `<div class="tag empty">No roles reach 40% yet — add the keywords from the ATS checklist above and re-run.</div>`;
+  const sectorTags = jobResult.sectors.map(s=>`<span class="tag">${escapeHtml(s.category)} · best ${s.best_pct}% · ${s.count} match${s.count===1?'':'es'}</span>`).join('');
+  const atsItems = atsBoosters(extracted, atsScore, jobResult).map((o,i)=>`<li><span class="idx ats-tag">${o.pts>0?'+'+o.pts:'TIP'}</span><span>${escapeHtml(o.t)}</span></li>`).join('');
+
+  resultView.innerHTML = `
+    <div class="result-head reveal-block">
+      <div>
+        <h2>${escapeHtml(extracted.name)}</h2>
+        <div class="meta">
+          ${extracted.email ? `<span>${escapeHtml(extracted.email)}</span>` : ''}
+          ${extracted.phone ? `<span>${escapeHtml(extracted.phone)}</span>` : ''}
+          <span>${extracted.word_count} words</span>
+          <span>${escapeHtml(filename)}</span>
+        </div>
+      </div>
+      <button class="reset-btn" id="resetBtn">← Analyze another</button>
+    </div>
+
+    <div class="section-label reveal-block">Score Panel</div>
+    <div class="gauge-row reveal-block">
+      <div class="gauge-card${resumeScore.total>=80?' excellent':''}">
+        ${gaugeSvg(resumeScore.total, 'var(--blue-bright)', 'score-resume')}
+        <div style="flex:1;min-width:0;">
+          <div class="gauge-title">Resume Score</div>
+          <div class="gauge-desc">Overall quality across contact info, skills, experience, education, projects and certifications.</div>
+          ${breakdownRows(resumeScore.breakdown, resumeMaxes, 'resume')}
+        </div>
+      </div>
+      <div class="gauge-card${atsScore.total>=80?' excellent':''}">
+        ${gaugeSvg(atsScore.total, 'var(--green-bright)', 'score-ats')}
+        <div style="flex:1;min-width:0;">
+          <div class="gauge-title">ATS Score</div>
+          <div class="gauge-desc">How readable this resume is to an Applicant Tracking System's parser.</div>
+          ${breakdownRows(atsScore.breakdown, atsMaxes, 'ats')}
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label reveal-block">Detected Skills (${extracted.skills.length})</div>
+    <div class="tag-wrap reveal-block">${skillTags}</div>
+
+    <div class="section-label reveal-block">Suggestions</div>
+    <ul class="suggestion-list reveal-block">${suggestionItems}</ul>
+
+    <div class="section-label reveal-block">Improve Your ATS Score</div>
+    <ul class="suggestion-list reveal-block">${atsItems}</ul>
+
+    <div class="section-label reveal-block">Live Job Search</div>
+    <div class="board-search reveal-block">
+      <input type="text" id="boardQuery" value="${escapeAttr(indeedDefaultQuery)}" placeholder="Job title or skills" />
+      <input type="text" id="boardLocation" value="" placeholder="Location (e.g. Chennai)" />
+      <div class="board-btn-row">
+        <button class="board-btn indeed" id="indeedSearchBtn">Indeed
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4L10 14" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="board-btn naukri" id="naukriSearchBtn">Naukri
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4L10 14" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="board-btn foundit" id="founditSearchBtn">Foundit
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4L10 14" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="board-btn" id="linkedinSearchBtn">LinkedIn${EXT_ICON}</button>
+        <button class="board-btn" id="glassdoorSearchBtn">Glassdoor${EXT_ICON}</button>
+        <button class="board-btn" id="shineSearchBtn">Shine${EXT_ICON}</button>
+        <button class="board-btn" id="internshalaSearchBtn">Internshala${EXT_ICON}</button>
+      </div>
+    </div>
+    <div class="footnote reveal-block" style="margin-top:-2px;margin-bottom:18px;">Opens live results on each site in a new tab, pre-filled from this resume — no data is sent anywhere until you click.</div>
+
+    <div class="section-label reveal-block">Jobs Across All Sectors — 40%+ Match (${jobResult.matches.length}) <span style="font-weight:400;color:var(--text-dim);font-size:12px;text-transform:none;">(sample dataset — use the search buttons for live openings)</span></div>
+    <div class="tag-wrap reveal-block" style="margin-bottom:6px;">${sectorTags}</div>
+    <div class="job-grid reveal-block">${jobCards}</div>
+
+    <div class="download-row reveal-block">
+      <button class="download-btn" id="downloadBtn">Download PDF Report</button>
+    </div>
+    <div class="footnote reveal-block">Analysis runs entirely in your browser — nothing was uploaded to a server. Apply Now and Search on Indeed open in.indeed.com in a new tab.</div>
+  `;
+
+  document.getElementById('resetBtn').addEventListener('click', ()=>{
+    resultView.classList.add('hidden');
+    uploadView.classList.remove('hidden');
+    fileInput.value = '';
+  });
+  document.getElementById('downloadBtn').addEventListener('click', ()=>downloadReport(a));
+
+  const boardBuilders = {
+    indeedSearchBtn: buildIndeedUrl,
+    naukriSearchBtn: buildNaukriUrl,
+    founditSearchBtn: buildFounditUrl,
+    linkedinSearchBtn: buildLinkedinUrl,
+    glassdoorSearchBtn: buildGlassdoorUrl,
+    shineSearchBtn: buildShineUrl,
+    internshalaSearchBtn: buildInternshalaUrl,
+  };
+  Object.entries(boardBuilders).forEach(([btnId, build])=>{
+    document.getElementById(btnId).addEventListener('click', ()=>{
+      const q = document.getElementById('boardQuery').value.trim();
+      const l = document.getElementById('boardLocation').value.trim();
+      window.open(build(q, l), '_blank', 'noopener,noreferrer');
+    });
+  });
+  ['boardQuery','boardLocation'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown', (e)=>{
+      if(e.key === 'Enter') document.getElementById('indeedSearchBtn').click();
+    });
+  });
+
+  runEntranceAnimations();
+  animateNumber(document.getElementById('score-resume-num'), resumeScore.total);
+  animateNumber(document.getElementById('score-ats-num'), atsScore.total);
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function escapeAttr(str){
+  return String(str).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+/* Builds a live search URL against Indeed India (in.indeed.com).
+   q = job title / skills keywords, l = optional location. */
+function buildIndeedUrl(q, l){
+  const params = new URLSearchParams();
+  if(q) params.set('q', q);
+  if(l) params.set('l', l);
+  return `https://in.indeed.com/jobs?${params.toString()}`;
+}
+
+/* Builds a live search URL against Naukri.com.
+   Naukri uses a slugified path segment plus a k= keyword param, e.g.
+   https://www.naukri.com/data-scientist-jobs?k=data+scientist&l=chennai */
+function buildNaukriUrl(q, l){
+  const slug = (q || 'jobs').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'jobs';
+  const params = new URLSearchParams();
+  if(q) params.set('k', q);
+  if(l) params.set('l', l);
+  const qs = params.toString();
+  return `https://www.naukri.com/${slug}-jobs${qs ? '?' + qs : ''}`;
+}
+
+/* Builds a live search URL against Foundit.in (formerly Monster India). */
+function buildFounditUrl(q, l){
+  const params = new URLSearchParams();
+  if(q) params.set('query', q);
+  if(l) params.set('locations', l);
+  return `https://www.foundit.in/srp/results?${params.toString()}`;
+}
+
+const EXT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 4h6v6" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 4L10 14" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function slugify(q){ return (q||'jobs').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'') || 'jobs'; }
+function buildLinkedinUrl(q, l){
+  const p = new URLSearchParams(); if(q) p.set('keywords', q); if(l) p.set('location', l);
+  return `https://www.linkedin.com/jobs/search/?${p.toString()}`;
+}
+function buildGlassdoorUrl(q, l){
+  const p = new URLSearchParams(); if(q) p.set('sc.keyword', q); if(l) p.set('locKeyword', l);
+  return `https://www.glassdoor.co.in/Job/jobs.htm?${p.toString()}`;
+}
+function buildShineUrl(q, l){
+  const p = new URLSearchParams(); if(q) p.set('q', q); if(l) p.set('loc', l);
+  return `https://www.shine.com/job-search/${slugify(q)}-jobs?${p.toString()}`;
+}
+function buildInternshalaUrl(q){ return `https://internshala.com/internships/keywords-${slugify(q)}`; }
+
+function jobLinks(job){
+  const l = job.location && job.location!=='Remote' ? job.location : '';
+  const q = job.title;
+  const links = [
+    ['LinkedIn', buildLinkedinUrl(q,l)], ['Indeed', buildIndeedUrl(q,l)], ['Naukri', buildNaukriUrl(q,l)],
+    ['Foundit', buildFounditUrl(q,l)], ['Glassdoor', buildGlassdoorUrl(q,l)], ['Shine', buildShineUrl(q,l)]
+  ];
+  if(job.min_experience===0) links.push(['Internshala', buildInternshalaUrl(q)]);
+  return `<div class="job-links">${links.map(([n,u])=>`<a class="mini-link" href="${escapeAttr(u)}" target="_blank" rel="noopener noreferrer">${n}</a>`).join('')}</div>`;
+}
+
+/* Apply Now — opens the job's real application/posting URL in a new tab.
+   Delegated once on resultView since job cards are re-rendered via innerHTML. */
+resultView.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.apply-btn');
+  if(!btn) return;
+  const url = btn.dataset.url;
+  if(url) window.open(url, '_blank', 'noopener,noreferrer');
+});
+
+/* ===================== PDF REPORT (mirrors pdf_report.py) ===================== */
+function downloadReport(a){
+  const {extracted, resumeScore, atsScore, suggestions, jobResult} = a;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const margin = 48;
+  let y = margin;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const contentWidth = pageWidth - margin*2;
+
+  function heading(text, size=13){
+    doc.setFont('helvetica','bold'); doc.setFontSize(size); doc.setTextColor(30,41,59);
+    doc.text(text, margin, y); y += size*1.4;
+  }
+  function body(text, size=10){
+    doc.setFont('helvetica','normal'); doc.setFontSize(size); doc.setTextColor(20,20,20);
+    const lines = doc.splitTextToSize(text, contentWidth);
+    lines.forEach(line=>{
+      if(y > 780){ doc.addPage(); y = margin; }
+      doc.text(line, margin, y); y += size*1.35;
+    });
+  }
+  function spacer(h=10){ y += h; }
+  function checkPage(){ if(y > 760){ doc.addPage(); y = margin; } }
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.setTextColor(37,99,235);
+  doc.text('AI Resume Analysis Report', margin, y); y += 30;
+
+  body(`Candidate: ${extracted.name}`);
+  body(`Email: ${extracted.email || 'Not found'}`);
+  body(`Phone: ${extracted.phone || 'Not found'}`);
+  spacer(14);
+
+  heading('Scores');
+  body(`Resume Score: ${resumeScore.total} / 100`);
+  body(`ATS Score: ${atsScore.total} / 100`);
+  spacer(14);
+
+  heading('Extracted Skills');
+  body(extracted.skills.length ? extracted.skills.join(', ') : 'No skills detected.');
+  spacer(10);
+
+  checkPage();
+  heading('Skills to Improve / Learn');
+  if(jobResult.overall_missing_skills.length){
+    jobResult.overall_missing_skills.forEach(s=> body('• ' + s));
+  } else {
+    body('No major missing skills detected.');
+  }
+  spacer(10);
+
+  checkPage();
+  heading('Suggestions to Improve Your Resume');
+  suggestions.forEach(s=> body('• ' + s));
+  spacer(10);
+
+  checkPage();
+  heading('Matching Jobs (40%+)');
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('Title', margin, y); doc.text('Company', margin+220, y); doc.text('Match %', margin+400, y);
+  y += 14;
+  doc.setFont('helvetica','normal');
+  jobResult.matches.forEach(job=>{
+    checkPage();
+    doc.text(String(job.title).slice(0,32), margin, y);
+    doc.text(String(job.company).slice(0,26), margin+220, y);
+    doc.text(job.match_percentage + '%', margin+400, y);
+    y += 13;
+    doc.setFontSize(8); doc.setTextColor(100,116,139);
+    doc.text('Apply: ' + String(job.application_url).slice(0,90), margin, y);
+    doc.setFontSize(10); doc.setTextColor(20,20,20);
+    y += 16;
+  });
+
+  doc.save(`resume_analysis_report_${(extracted.name||'candidate').replace(/\s+/g,'_')}.pdf`);
+}
+
+/* ===================== AMBIENT INTERACTION LAYER ===================== */
+/* Mouse-tracking spotlight on glass surfaces (dropzone, gauge cards, job cards),
+   and a very slight parallax drift on the background blobs. Respects
+   prefers-reduced-motion by skipping entirely when the user has opted out. */
+const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+if(!prefersReducedMotion){
+  const spotlightSelector = '.dropzone, .gauge-card, .job-card';
+
+  function updateSpotlight(target, clientX, clientY){
+    const rect = target.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+    target.style.setProperty('--mx', x + '%');
+    target.style.setProperty('--my', y + '%');
+  }
+
+  // Static element present from load
+  dropzone.addEventListener('pointermove', (e)=> updateSpotlight(dropzone, e.clientX, e.clientY));
+
+  // Delegated listener for dynamically-rendered result view (gauge/job cards)
+  document.getElementById('root').addEventListener('pointermove', (e)=>{
+    const card = e.target.closest('.gauge-card, .job-card');
+    if(card) updateSpotlight(card, e.clientX, e.clientY);
+  });
+
+  // Subtle parallax drift on ambient blobs, following the cursor across the whole page
+  const orbs = document.querySelectorAll('.bg-orb');
+  let rafPending = false;
+  let lastX = 0.5, lastY = 0.5;
+  window.addEventListener('pointermove', (e)=>{
+    lastX = e.clientX / window.innerWidth;
+    lastY = e.clientY / window.innerHeight;
+    if(!rafPending){
+      rafPending = true;
+      requestAnimationFrame(()=>{
+        orbs.forEach((orb, i)=>{
+          const strength = 10 + i*4;
+          const dx = (lastX - 0.5) * strength;
+          const dy = (lastY - 0.5) * strength;
+          orb.style.marginLeft = dx + 'px';
+          orb.style.marginTop = dy + 'px';
+        });
+        rafPending = false;
+      });
+    }
+  });
+}
+</script>
+</body>
+</html>
